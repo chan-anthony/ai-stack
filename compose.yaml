@@ -5,7 +5,7 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
-    restart: unless-sto>>pped
+    restart: unless-stopped
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
@@ -13,22 +13,13 @@ services:
       - ENABLE_IMAGE_GENERATION=True
       - COMFYUI_BASE_URL=http://stable-diffusion-webui:7860
     networks:
-      - traefik
+      - ai-stack
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - ./ollama:/root/.ollama
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.ollama.rule=Host(`ollama.local.example.com`)"
-      - "traefik.http.routers.ollama.entrypoints=https"
-      - "traefik.http.routers.ollama.tls=true"
-      - "traefik.http.routers.ollama.tls.certresolver=cloudflare"
-      - "traefik.http.routers.ollama.middlewares=default-headers@file"
-      - "traefik.http.routers.ollama.middlewares=ollama-auth"
-      - "traefik.http.services.ollama.loadbalancer.server.port=11434"
-      - "traefik.http.routers.ollama.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.users=${OLLAMA_API_CREDENTIALS}"
+    ports:
+      - "11434:11434" # Add this line to expose the port
     deploy:
       resources:
         reservations:
@@ -38,12 +29,13 @@ services:
               capabilities: [gpu]
 
 # open web ui
+
   open-webui:
     image: ghcr.io/open-webui/open-webui:latest
     container_name: open-webui
     restart: unless-stopped
     networks:
-      - traefik
+      - ai-stack
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
@@ -52,29 +44,23 @@ services:
       - RAG_WEB_SEARCH_ENGINE=searxng
       - RAG_WEB_SEARCH_RESULT_COUNT=3
       - RAG_WEB_SEARCH_CONCURRENT_REQUESTS=10
-      - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>
+      - SEARXNG_QUERY_URL=http://searxng:8081/search?q=<query>
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - ./open-webui:/app/backend/data
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.open-webui.rule=Host(`chat.local.example.com`)"
-      - "traefik.http.routers.open-webui.entrypoints=https"
-      - "traefik.http.routers.open-webui.tls=true"
-      - "traefik.http.routers.open-webui.tls.certresolver=cloudflare"
-      - "traefik.http.routers.open-webui.middlewares=default-headers@file"
-      - "traefik.http.services.open-webui.loadbalancer.server.port=8080"
     depends_on:
       - ollama
     extra_hosts:
       - host.docker.internal:host-gateway
+    ports:
+      - "8080:8080" # Add this line to expose the port
 
   searxng:
     image: searxng/searxng:latest
     container_name: searxng
     networks:
-      - traefik
+      - ai-stack
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
@@ -86,6 +72,8 @@ services:
       - ollama
       - open-webui
     restart: unless-stopped
+    ports:
+      - "8081:8080" # Add this line to expose the port
 
 # stable diffusion
 
@@ -112,35 +100,29 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - ./stable-diffusion-webui-docker/data:/data
       - ./stable-diffusion-webui-docker/output:/output
-
     stop_signal: SIGKILL
     tty: true
     deploy:
       resources:
         reservations:
           devices:
-              - driver: nvidia
-                device_ids: ['0']
-                capabilities: [compute, utility]
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [compute, utility]
     restart: unless-stopped
     networks:
-      - traefik
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.stable-diffusion.rule=Host(`stable-diffusion.local.example.com`)"
-      - "traefik.http.routers.stable-diffusion.entrypoints=https"
-      - "traefik.http.routers.stable-diffusion.tls=true"
-      - "traefik.http.routers.stable-diffusion.tls.certresolver=cloudflare"
-      - "traefik.http.services.stable-diffusion.loadbalancer.server.port=7860"
-      - "traefik.http.routers.stable-diffusion.middlewares=default-headers@file"
+      - ai-stack
+    ports:
+      - "7860:7860" # Add this line to expose the port
 
 # whisper
+
   # mongo:
   #   image: mongo
   #   env_file:
   #     - .env
   #   networks:
-  #     - traefik
+  #     - ai-stack
   #   restart: unless-stopped
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
@@ -153,6 +135,8 @@ services:
   #     - MONGO_INITDB_ROOT_USERNAME=${DB_USER:-whishper}
   #     - MONGO_INITDB_ROOT_PASSWORD=${DB_PASS:-whishper}
   #   command: ['--logpath', '/var/log/mongodb/mongod.log']
+  #   ports:
+  #     - "27017:27017" # Add this line to expose the port
 
   # translate:
   #   container_name: whisper-libretranslate
@@ -160,7 +144,7 @@ services:
   #   env_file:
   #     - .env
   #   networks:
-  #     - traefik
+  #     - ai-stack
   #   restart: unless-stopped
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
@@ -182,6 +166,8 @@ services:
   #         - driver: nvidia
   #           count: all
   #           capabilities: [gpu]
+  #   ports:
+  #     - "5000:5000" # Add this line to expose the port
 
   # whisper:
   #   container_name: whisper
@@ -190,7 +176,7 @@ services:
   #   env_file:
   #     - .env
   #   networks:
-  #     - traefik
+  #     - ai-stack
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
   #     - /etc/timezone:/etc/timezone:ro
@@ -198,14 +184,6 @@ services:
   #     - ./whisper/logs:/var/log/whishper
   #     - ./whisper/models:/app/models
   #   restart: unless-stopped
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.whisper.rule=Host(`whisper.local.example.com`)"
-  #     - "traefik.http.routers.whisper.entrypoints=https"
-  #     - "traefik.http.routers.whisper.tls=true"
-  #     - "traefik.http.routers.whisper.tls.certresolver=cloudflare"
-  #     - "traefik.http.services.whisper.loadbalancer.server.port=80"
-  #     - "traefik.http.routers.whisper.middlewares=default-headers@file"
   #   depends_on:
   #     - mongo
   #     - translate
@@ -225,6 +203,9 @@ services:
   #         - driver: nvidia
   #           count: all
   #           capabilities: [gpu]
+  #   ports:
+  #     - "8000:80" # Add this line to expose the port
+
 networks:
-  traefik:
+  ai-stack:
     external: true
