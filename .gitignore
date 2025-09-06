@@ -2,3 +2,8 @@
 /ollama
 /open-webui
 /searxng
+
+*.log
+*sqlite
+*.journal
+config
