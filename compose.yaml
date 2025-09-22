@@ -13,6 +13,7 @@ services:
       - ENABLE_IMAGE_GENERATION=True
       - OLLAMA_ORIGINS=chrome-extension://*
       - COMFYUI_BASE_URL=http://stable-diffusion-webui:7860
+      - CLI_ARGS=--use-pytorch-cross-attention
     networks:
       - ai-stack
     volumes:
@@ -76,46 +77,6 @@ services:
     ports:
       - "8081:8080" # Add this line to expose the port
 
-# stable diffusion
-
-  stable-diffusion-download:
-    build: ./stable-diffusion-webui-docker/services/download/
-    image: comfy-download
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-      - ./stable-diffusion-webui-docker/data:/data
-
-  stable-diffusion-webui:
-    build: ./stable-diffusion-webui-docker/services/comfy/
-    image: comfy-ui
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-      - CLI_ARGS=
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-      - ./stable-diffusion-webui-docker/data:/data
-      - ./stable-diffusion-webui-docker/output:/output
-    stop_signal: SIGKILL
-    tty: true
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ['0']
-              capabilities: [compute, utility]
-    restart: unless-stopped
-    networks:
-      - ai-stack
-    ports:
-      - "7860:7860" # Add this line to expose the port
-
 # n8n
   n8n:
     image: docker.n8n.io/n8nio/n8n
@@ -135,6 +96,37 @@ services:
     restart: unless-stopped
     ports:
       - "5678:5678"
+
+  comfyui:
+    init: true
+    container_name: comfyui
+    networks:
+      - ai-stack
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: "yanwk/comfyui-boot:cu129-slim"
+    ports:
+      - "8188:8188"
+    volumes:
+      - "./ComfyUI-Docker/storage:/root"
+      - "./ComfyUI-Docker/storage-models/models:/root/ComfyUI/models"
+      - "./ComfyUI-Docker/storage-models/hf-hub:/root/.cache/huggingface/hub"
+      - "./ComfyUI-Docker/storage-models/torch-hub:/root/.cache/torch/hub"
+      - "./ComfyUI-Docker/storage-user/input:/root/ComfyUI/input"
+      - "./ComfyUI-Docker/storage-user/output:/root/ComfyUI/output"
+      - "./ComfyUI-Docker/storage-user/workflows:/root/ComfyUI/user/default/workflows"
+    environment:
+      - CLI_ARGS=--use-pytorch-cross-attention
+    security_opt:
+      - "label=type:nvidia_container_t"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
 
 networks:
   ai-stack:

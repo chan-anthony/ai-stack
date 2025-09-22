@@ -2,6 +2,7 @@
 /ollama
 /open-webui
 /searxng
+/ComfyUI-Docker
 
 *.log
 *sqlite
