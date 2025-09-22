@@ -3,6 +3,7 @@
 /open-webui
 /searxng
 /ComfyUI-Docker
+/n8n
 
 *.log
 *sqlite
